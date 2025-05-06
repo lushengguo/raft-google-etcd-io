@@ -870,6 +870,11 @@ func (r *raft) tickHeartbeat() {
 				r.logger.Debugf("error occurred during checking sending heartbeat: %v", err)
 			}
 		}
+
+		// transfer leadership is not a standard raft feature.
+		// it supports a more gentle method to transfer leadership than force this node down
+		// which would cause raft protocol disable to rw in at least one election period.
+
 		// If current leader cannot transfer leadership in electionTimeout, it becomes leader again.
 		if r.state == StateLeader && r.leadTransferee != None {
 			r.abortLeaderTransfer()
@@ -1091,7 +1096,22 @@ func (r *raft) Step(m pb.Message) error {
 		// local message
 	case m.Term > r.Term:
 		if m.Type == pb.MsgVote || m.Type == pb.MsgPreVote {
+
+			// campaignTransfer is not standard raft feature
+			// it was used to transfer leadership softly or manually
 			force := bytes.Equal(m.Context, []byte(campaignTransfer))
+
+			// leadership lease is not a standard raft feature toooooooo
+			// in standard raft, every node could start election after election timeout
+			// and other node just compare the log and term, if they didn't grant vote to any node
+			// then they will grant vote to the candidate
+			//
+			// when leader lost connection to some node, this would cause frequently leadership transfer
+			//
+			// in google's implementation, they use a lease to prevent this
+			// lease is tied to electionTimeout
+			// if lease didn't expired, it would not grant vote to other node
+			// this avoid massive amount of leadership transfer under the semantics of poor network 
 			inLease := r.checkQuorum && r.lead != None && r.electionElapsed < r.electionTimeout
 			if !force && inLease {
 				// If a server receives a RequestVote request within the minimum election timeout
