@@ -82,7 +82,7 @@ and all Entries written by any previous Ready batch (Messages may be sent while
 entries from the same batch are being persisted). To reduce the I/O latency, an
 optimization can be applied to make leader write to disk in parallel with its
 followers (as explained at section 10.2.1 in Raft thesis). If any Message has type
-MsgSnap, call Node.ReportSnapshot() after it has been sent (these messages may be
+MsgSnapshot, call Node.ReportSnapshot() after it has been sent (these messages may be
 large).
 
 Note: Marshalling messages is not thread-safe; it is important that you
@@ -292,42 +292,42 @@ raftpb.MessageType. Note that every step is checked by one common method
 'Step' that safety-checks the terms of node and incoming message to prevent
 stale log entries:
 
-	'MsgHup' is used for election. If a node is a follower or candidate, the
+	'InternalMsgHeartbeatUp' is used for election. If a node is a follower or candidate, the
 	'tick' function in 'raft' struct is set as 'tickElection'. If a follower or
 	candidate has not received any heartbeat before the election timeout, it
-	passes 'MsgHup' to its Step method and becomes (or remains) a candidate to
+	passes 'InternalMsgHeartbeatUp' to its Step method and becomes (or remains) a candidate to
 	start a new election.
 
-	'MsgBeat' is an internal type that signals the leader to send a heartbeat of
+	'InternalMsgBeat' is an internal type that signals the leader to send a heartbeat of
 	the 'MsgHeartbeat' type. If a node is a leader, the 'tick' function in
 	the 'raft' struct is set as 'tickHeartbeat', and triggers the leader to
 	send periodic 'MsgHeartbeat' messages to its followers.
 
-	'MsgProp' proposes to append data to its log entries. This is a special
+	'MsgProposal' proposes to append data to its log entries. This is a special
 	type to redirect proposals to leader. Therefore, send method overwrites
 	raftpb.Message's term with its HardState's term to avoid attaching its
-	local term to 'MsgProp'. When 'MsgProp' is passed to the leader's 'Step'
+	local term to 'MsgProposal'. When 'MsgProposal' is passed to the leader's 'Step'
 	method, the leader first calls the 'appendEntry' method to append entries
 	to its log, and then calls 'bcastAppend' method to send those entries to
-	its peers. When passed to candidate, 'MsgProp' is dropped. When passed to
-	follower, 'MsgProp' is stored in follower's mailbox(msgs) by the send
+	its peers. When passed to candidate, 'MsgProposal' is dropped. When passed to
+	follower, 'MsgProposal' is stored in follower's mailbox(msgs) by the send
 	method. It is stored with sender's ID and later forwarded to leader by
 	rafthttp package.
 
-	'MsgApp' contains log entries to replicate. A leader calls bcastAppend,
-	which calls sendAppend, which sends soon-to-be-replicated logs in 'MsgApp'
-	type. When 'MsgApp' is passed to candidate's Step method, candidate reverts
+	'MsgAppend' contains log entries to replicate. A leader calls bcastAppend,
+	which calls sendAppend, which sends soon-to-be-replicated logs in 'MsgAppend'
+	type. When 'MsgAppend' is passed to candidate's Step method, candidate reverts
 	back to follower, because it indicates that there is a valid leader sending
-	'MsgApp' messages. Candidate and follower respond to this message in
-	'MsgAppResp' type.
+	'MsgAppend' messages. Candidate and follower respond to this message in
+	'MsgAppendResponse' type.
 
-	'MsgAppResp' is response to log replication request('MsgApp'). When
-	'MsgApp' is passed to candidate or follower's Step method, it responds by
-	calling 'handleAppendEntries' method, which sends 'MsgAppResp' to raft
+	'MsgAppendResponse' is response to log replication request('MsgAppend'). When
+	'MsgAppend' is passed to candidate or follower's Step method, it responds by
+	calling 'handleAppendEntries' method, which sends 'MsgAppendResponse' to raft
 	mailbox.
 
 	'MsgVote' requests votes for election. When a node is a follower or
-	candidate and 'MsgHup' is passed to its Step method, then the node calls
+	candidate and 'InternalMsgHeartbeatUp' is passed to its Step method, then the node calls
 	'campaign' method to campaign itself to become a leader. Once 'campaign'
 	method is called, the node becomes candidate and sends 'MsgVote' to peers
 	in cluster to request votes. When passed to leader or candidate's Step
@@ -351,17 +351,17 @@ stale log entries:
 	number unless the pre-election indicates that the campaigning node would win.
 	This minimizes disruption when a partitioned node rejoins the cluster.
 
-	'MsgSnap' requests to install a snapshot message. When a node has just
-	become a leader or the leader receives 'MsgProp' message, it calls
+	'MsgSnapshot' requests to install a snapshot message. When a node has just
+	become a leader or the leader receives 'MsgProposal' message, it calls
 	'bcastAppend' method, which then calls 'sendAppend' method to each
 	follower. In 'sendAppend', if a leader fails to get term or entries,
-	the leader requests snapshot by sending 'MsgSnap' type message.
+	the leader requests snapshot by sending 'MsgSnapshot' type message.
 
 	'MsgSnapStatus' tells the result of snapshot install message. When a
-	follower rejected 'MsgSnap', it indicates the snapshot request with
-	'MsgSnap' had failed from network issues which causes the network layer
+	follower rejected 'MsgSnapshot', it indicates the snapshot request with
+	'MsgSnapshot' had failed from network issues which causes the network layer
 	to fail to send out snapshots to its followers. Then leader considers
-	follower's progress as probe. When 'MsgSnap' were not rejected, it
+	follower's progress as probe. When 'MsgSnapshot' were not rejected, it
 	indicates that the snapshot succeeded and the leader sets follower's
 	progress to probe and resumes its log replication.
 
@@ -381,14 +381,14 @@ stale log entries:
 	'MsgUnreachable' tells that request(message) wasn't delivered. When
 	'MsgUnreachable' is passed to leader's Step method, the leader discovers
 	that the follower that sent this 'MsgUnreachable' is not reachable, often
-	indicating 'MsgApp' is lost. When follower's progress state is replicate,
+	indicating 'MsgAppend' is lost. When follower's progress state is replicate,
 	the leader sets it back to probe.
 
 	'MsgStorageAppend' is a message from a node to its local append storage
 	thread to write entries, hard state, and/or a snapshot to stable storage.
 	The message will carry one or more responses, one of which will be a
 	'MsgStorageAppendResp' back to itself. The responses can also contain
-	'MsgAppResp', 'MsgVoteResp', and 'MsgPreVoteResp' messages. Used with
+	'MsgAppendResponse', 'MsgVoteResp', and 'MsgPreVoteResp' messages. Used with
 	AsynchronousStorageWrites.
 
 	'MsgStorageApply' is a message from a node to its local apply storage

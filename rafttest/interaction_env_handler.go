@@ -60,7 +60,7 @@ func (env *InteractionEnv) Handle(t *testing.T, d datadriven.TestData) string {
 		//
 		// Example:
 		//
-		// deliver-msgs <idx> type=MsgApp drop=(2,3)
+		// deliver-msgs <idx> type=MsgAppend drop=(2,3)
 		err = env.handleDeliverMsgs(t, d)
 	case "process-ready":
 		// Example:

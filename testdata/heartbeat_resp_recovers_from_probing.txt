@@ -1,7 +1,7 @@
 # This test checks that if a fully caught-up follower transitions
 # into StateProbe (for example due to a call to ReportUnreachable), the
 # leader will react to a subsequent heartbeat response from the probing
-# follower by sending an empty MsgApp, the response of which restores
+# follower by sending an empty MsgAppend, the response of which restores
 # StateReplicate for the follower. In other words, we don't end up in
 # a stable state with a fully caught up follower in StateProbe.
 
@@ -47,7 +47,7 @@ tick-heartbeat 1
 ----
 ok
 
-# Heartbeat -> HeartbeatResp -> MsgApp -> MsgAppResp -> StateReplicate.
+# Heartbeat -> HeartbeatResp -> MsgAppend -> MsgAppendResponse -> StateReplicate.
 stabilize
 ----
 > 1 handling Ready
@@ -73,15 +73,15 @@ stabilize
 > 1 handling Ready
   Ready MustSync=false:
   Messages:
-  1->2 MsgApp Term:1 Log:1/11 Commit:11
+  1->2 MsgAppend Term:1 Log:1/11 Commit:11
 > 2 receiving messages
-  1->2 MsgApp Term:1 Log:1/11 Commit:11
+  1->2 MsgAppend Term:1 Log:1/11 Commit:11
 > 2 handling Ready
   Ready MustSync=false:
   Messages:
-  2->1 MsgAppResp Term:1 Log:0/11
+  2->1 MsgAppendResponse Term:1 Log:0/11
 > 1 receiving messages
-  2->1 MsgAppResp Term:1 Log:0/11
+  2->1 MsgAppendResponse Term:1 Log:0/11
 
 status 1
 ----

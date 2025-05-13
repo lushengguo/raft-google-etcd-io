@@ -14,13 +14,13 @@
 
 package tracker
 
-// inflight describes an in-flight MsgApp message.
+// inflight describes an in-flight MsgAppend message.
 type inflight struct {
 	index uint64 // the index of the last entry inside the message
 	bytes uint64 // the total byte size of the entries in the message
 }
 
-// Inflights limits the number of MsgApp (represented by the largest index
+// Inflights limits the number of MsgAppend (represented by the largest index
 // contained within) sent to followers but not yet acknowledged by them. Callers
 // use Full() to check whether more messages can be sent, call Add() whenever
 // they are sending a new append, and release "quota" via FreeLE() whenever an

@@ -30,7 +30,7 @@ are bumped, and also a minor update on readme in https://github.com/etcd-io/raft
 
 ### Features
 - [Add MaxInflightBytes setting in `raft.Config` for better flow control of entries](https://github.com/etcd-io/etcd/pull/14624)
-- [Send empty `MsgApp` when entry in-flight limits are exceeded](https://github.com/etcd-io/etcd/pull/14633)
+- [Send empty `MsgAppend` when entry in-flight limits are exceeded](https://github.com/etcd-io/etcd/pull/14633)
 - [Support asynchronous storage writes](https://github.com/etcd-io/raft/pull/8)
 - [Paginate the unapplied config changes scan](https://github.com/etcd-io/raft/pull/32)
 - [Add ForgetLeader](https://github.com/etcd-io/raft/pull/78)

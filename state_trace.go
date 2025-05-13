@@ -139,7 +139,7 @@ func makeTracingMessage(m *raftpb.Message) *TracingMessage {
 	logTerm := m.LogTerm
 	entries := len(m.Entries)
 	index := m.Index
-	if m.Type == raftpb.MsgSnap {
+	if m.Type == raftpb.MsgSnapshot {
 		index = 0
 		logTerm = 0
 		entries = int(m.Snapshot.Metadata.Index)
@@ -293,16 +293,16 @@ func traceSendMessage(r *raft, m *raftpb.Message) {
 
 	var evt stateMachineEventType
 	switch m.Type {
-	case raftpb.MsgApp:
+	case raftpb.MsgAppend:
 		evt = rsmSendAppendEntriesRequest
 		if p, exist := r.trk.Progress[m.From]; exist {
 			prop["match"] = p.Match
 			prop["next"] = p.Next
 		}
 
-	case raftpb.MsgHeartbeat, raftpb.MsgSnap:
+	case raftpb.MsgHeartbeat, raftpb.MsgSnapshot:
 		evt = rsmSendAppendEntriesRequest
-	case raftpb.MsgAppResp, raftpb.MsgHeartbeatResp:
+	case raftpb.MsgAppendResponse, raftpb.MsgHeartbeatResp:
 		evt = rsmSendAppendEntriesResponse
 	case raftpb.MsgVote:
 		evt = rsmSendRequestVoteRequest
@@ -322,9 +322,9 @@ func traceReceiveMessage(r *raft, m *raftpb.Message) {
 
 	var evt stateMachineEventType
 	switch m.Type {
-	case raftpb.MsgApp, raftpb.MsgHeartbeat, raftpb.MsgSnap:
+	case raftpb.MsgAppend, raftpb.MsgHeartbeat, raftpb.MsgSnapshot:
 		evt = rsmReceiveAppendEntriesRequest
-	case raftpb.MsgAppResp, raftpb.MsgHeartbeatResp:
+	case raftpb.MsgAppendResponse, raftpb.MsgHeartbeatResp:
 		evt = rsmReceiveAppendEntriesResponse
 	case raftpb.MsgVote:
 		evt = rsmReceiveRequestVoteRequest

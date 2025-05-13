@@ -372,7 +372,7 @@ type raft struct {
 	//
 	// Messages in this list may target other nodes or may target this node.
 	//
-	// Messages in this list have the type MsgAppResp, MsgVoteResp, or
+	// Messages in this list have the type MsgAppendResponse, MsgVoteResp, or
 	// MsgPreVoteResp. See the comment in raft.send for details.
 	msgsAfterAppend []pb.Message
 
@@ -409,7 +409,24 @@ type raft struct {
 	heartbeatElapsed int
 
 	checkQuorum bool
-	preVote     bool
+
+	/// Problem without PreVote:
+	// 	1. Network Partition Scenario:
+	//    - Node gets isolated from cluster
+	//    - Node's election timeout triggers
+	//    - Node increases its term and starts election
+	//    - When partition heals, higher term forces leader to step down
+	//    - Causes unnecessary leadership disruption
+	// 
+	/// Prevote solution:
+	// 1. Two-Phase Election:
+	//    - Phase 1: PreVote request without increasing term
+	//    - Phase 2: Real vote only if PreVote succeeds
+	// 2. PreVote Rules:
+	//    - Node first asks "Would you vote for me in next term?"
+	//    - Only increases its term if it gets majority PreVotes
+	//    - Prevents isolated nodes from disrupting cluster with higher terms
+	preVote bool
 
 	heartbeatTimeout int
 	electionTimeout  int
@@ -533,15 +550,15 @@ func (r *raft) send(m pb.Message) {
 		if m.Term != 0 {
 			r.logger.Panicf("term should not be set when sending %s (was %d)", m.Type, m.Term)
 		}
-		// do not attach term to MsgProp, MsgReadIndex
+		// do not attach term to MsgProposal, MsgReadIndex
 		// proposals are a way to forward to the leader and
 		// should be treated as local message.
 		// MsgReadIndex is also forwarded to leader.
-		if m.Type != pb.MsgProp && m.Type != pb.MsgReadIndex {
+		if m.Type != pb.MsgProposal && m.Type != pb.MsgReadIndex {
 			m.Term = r.Term
 		}
 	}
-	if m.Type == pb.MsgAppResp || m.Type == pb.MsgVoteResp || m.Type == pb.MsgPreVoteResp {
+	if m.Type == pb.MsgAppendResponse || m.Type == pb.MsgVoteResp || m.Type == pb.MsgPreVoteResp {
 		// If async storage writes are enabled, messages added to the msgs slice
 		// are allowed to be sent out before unstable state (e.g. log entry
 		// writes and election votes) have been durably synced to the local
@@ -628,10 +645,10 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
 	}
 
 	var ents []pb.Entry
-	// In a throttled StateReplicate only send empty MsgApp, to ensure progress.
+	// In a throttled StateReplicate only send empty MsgAppend, to ensure progress.
 	// Otherwise, if we had a full Inflights and all inflight messages were in
 	// fact dropped, replication to that follower would stall. Instead, an empty
-	// MsgApp will eventually reach the follower (heartbeats responses prompt the
+	// MsgAppend will eventually reach the follower (heartbeats responses prompt the
 	// leader to send an append), allowing it to be acked or rejected, both of
 	// which will clear out Inflights.
 	if pr.State != tracker.StateReplicate || !pr.Inflights.Full() {
@@ -645,10 +662,10 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
 		return r.maybeSendSnapshot(to, pr)
 	}
 
-	// Send the actual MsgApp otherwise, and update the progress accordingly.
+	// Send the actual MsgAppend otherwise, and update the progress accordingly.
 	r.send(pb.Message{
 		To:      to,
-		Type:    pb.MsgApp,
+		Type:    pb.MsgAppend,
 		Index:   prevIndex,
 		LogTerm: prevTerm,
 		Entries: ents,
@@ -684,7 +701,7 @@ func (r *raft) maybeSendSnapshot(to uint64, pr *tracker.Progress) bool {
 	pr.BecomeSnapshot(sindex)
 	r.logger.Debugf("%x paused sending replication messages to %x [%s]", r.id, to, pr)
 
-	r.send(pb.Message{To: to, Type: pb.MsgSnap, Snapshot: &snapshot})
+	r.send(pb.Message{To: to, Type: pb.MsgSnapshot, Snapshot: &snapshot})
 	return true
 }
 
@@ -833,7 +850,7 @@ func (r *raft) appendEntry(es ...pb.Entry) (accepted bool) {
 	// use latest "last" index after truncate/append
 	li = r.raftLog.append(es...)
 	// The leader needs to self-ack the entries just appended once they have
-	// been durably persisted (since it doesn't send an MsgApp to itself). This
+	// been durably persisted (since it doesn't send an MsgAppend to itself). This
 	// response message will be added to msgsAfterAppend and delivered back to
 	// this node after these entries have been written to stable storage. When
 	// handled, this is roughly equivalent to:
@@ -842,7 +859,7 @@ func (r *raft) appendEntry(es ...pb.Entry) (accepted bool) {
 	//  if r.maybeCommit() {
 	//  	r.bcastAppend()
 	//  }
-	r.send(pb.Message{To: r.id, Type: pb.MsgAppResp, Index: li})
+	r.send(pb.Message{To: r.id, Type: pb.MsgAppendResponse, Index: li})
 	return true
 }
 
@@ -852,13 +869,13 @@ func (r *raft) tickElection() {
 
 	if r.promotable() && r.pastElectionTimeout() {
 		r.electionElapsed = 0
-		if err := r.Step(pb.Message{From: r.id, Type: pb.MsgHup}); err != nil {
+		if err := r.Step(pb.Message{From: r.id, Type: pb.InternalMsgHeartbeatUp}); err != nil {
 			r.logger.Debugf("error occurred during election: %v", err)
 		}
 	}
 }
 
-// tickHeartbeat is run by leaders to send a MsgBeat after r.heartbeatTimeout.
+// tickHeartbeat is run by leaders to send a InternalMsgBeat after r.heartbeatTimeout.
 func (r *raft) tickHeartbeat() {
 	r.heartbeatElapsed++
 	r.electionElapsed++
@@ -887,7 +904,7 @@ func (r *raft) tickHeartbeat() {
 
 	if r.heartbeatElapsed >= r.heartbeatTimeout {
 		r.heartbeatElapsed = 0
-		if err := r.Step(pb.Message{From: r.id, Type: pb.MsgBeat}); err != nil {
+		if err := r.Step(pb.Message{From: r.id, Type: pb.InternalMsgBeat}); err != nil {
 			r.logger.Debugf("error occurred during checking sending heartbeat: %v", err)
 		}
 	}
@@ -977,7 +994,7 @@ func (r *raft) becomeLeader() {
 
 func (r *raft) hup(t CampaignType) {
 	if r.state == StateLeader {
-		r.logger.Debugf("%x ignoring MsgHup because already leader", r.id)
+		r.logger.Debugf("%x ignoring InternalMsgHeartbeatUp because already leader", r.id)
 		return
 	}
 
@@ -1111,7 +1128,7 @@ func (r *raft) Step(m pb.Message) error {
 			// in google's implementation, they use a lease to prevent this
 			// lease is tied to electionTimeout
 			// if lease didn't expired, it would not grant vote to other node
-			// this avoid massive amount of leadership transfer under the semantics of poor network 
+			// this avoid massive amount of leadership transfer under the semantics of poor network
 			inLease := r.checkQuorum && r.lead != None && r.electionElapsed < r.electionTimeout
 			if !force && inLease {
 				// If a server receives a RequestVote request within the minimum election timeout
@@ -1135,7 +1152,7 @@ func (r *raft) Step(m pb.Message) error {
 		default:
 			r.logger.Infof("%x [term: %d] received a %s message with higher term from %x [term: %d]",
 				r.id, r.Term, m.Type, m.From, m.Term)
-			if m.Type == pb.MsgApp || m.Type == pb.MsgHeartbeat || m.Type == pb.MsgSnap {
+			if m.Type == pb.MsgAppend || m.Type == pb.MsgHeartbeat || m.Type == pb.MsgSnapshot {
 				r.becomeFollower(m.Term, m.From)
 			} else {
 				r.becomeFollower(m.Term, None)
@@ -1143,7 +1160,7 @@ func (r *raft) Step(m pb.Message) error {
 		}
 
 	case m.Term < r.Term:
-		if (r.checkQuorum || r.preVote) && (m.Type == pb.MsgHeartbeat || m.Type == pb.MsgApp) {
+		if (r.checkQuorum || r.preVote) && (m.Type == pb.MsgHeartbeat || m.Type == pb.MsgAppend) {
 			// We have received messages from a leader at a lower term. It is possible
 			// that these messages were simply delayed in the network, but this could
 			// also mean that this node has advanced its term number during a network
@@ -1155,17 +1172,17 @@ func (r *raft) Step(m pb.Message) error {
 			// result of these two features is to minimize the disruption caused by
 			// nodes that have been removed from the cluster's configuration: a
 			// removed node will send MsgVotes (or MsgPreVotes) which will be ignored,
-			// but it will not receive MsgApp or MsgHeartbeat, so it will not create
+			// but it will not receive MsgAppend or MsgHeartbeat, so it will not create
 			// disruptive term increases, by notifying leader of this node's activeness.
 			// The above comments also true for Pre-Vote
 			//
 			// When follower gets isolated, it soon starts an election ending
 			// up with a higher term than leader, although it won't receive enough
 			// votes to win the election. When it regains connectivity, this response
-			// with "pb.MsgAppResp" of higher term would force leader to step down.
+			// with "pb.MsgAppendResponse" of higher term would force leader to step down.
 			// However, this disruption is inevitable to free this stuck node with
 			// fresh election. This can be prevented with Pre-Vote phase.
-			r.send(pb.Message{To: m.From, Type: pb.MsgAppResp})
+			r.send(pb.Message{To: m.From, Type: pb.MsgAppendResponse})
 		} else if m.Type == pb.MsgPreVote {
 			// Before Pre-Vote enable, there may have candidate with higher term,
 			// but less log. After update to Pre-Vote, the cluster may deadlock if
@@ -1199,7 +1216,7 @@ func (r *raft) Step(m pb.Message) error {
 	}
 
 	switch m.Type {
-	case pb.MsgHup:
+	case pb.InternalMsgHeartbeatUp:
 		if r.preVote {
 			r.hup(campaignPreElection)
 		} else {
@@ -1287,7 +1304,7 @@ type stepFunc func(r *raft, m pb.Message) error
 func stepLeader(r *raft, m pb.Message) error {
 	// These message types do not require any progress for m.From.
 	switch m.Type {
-	case pb.MsgBeat:
+	case pb.InternalMsgBeat:
 		r.bcastHeartbeat()
 		return nil
 	case pb.MsgCheckQuorum:
@@ -1303,9 +1320,9 @@ func stepLeader(r *raft, m pb.Message) error {
 			}
 		})
 		return nil
-	case pb.MsgProp:
+	case pb.MsgProposal:
 		if len(m.Entries) == 0 {
-			r.logger.Panicf("%x stepped empty MsgProp", r.id)
+			r.logger.Panicf("%x stepped empty MsgProposal", r.id)
 		}
 		if r.trk.Progress[r.id] == nil {
 			// If we are not currently a member of the range (i.e. this node
@@ -1393,9 +1410,9 @@ func stepLeader(r *raft, m pb.Message) error {
 		return nil
 	}
 	switch m.Type {
-	case pb.MsgAppResp:
+	case pb.MsgAppendResponse:
 		// NB: this code path is also hit from (*raft).advance, where the leader steps
-		// an MsgAppResp to acknowledge the appended entries in the last Ready.
+		// an MsgAppendResponse to acknowledge the appended entries in the last Ready.
 
 		pr.RecentActive = true
 
@@ -1420,7 +1437,7 @@ func stepLeader(r *raft, m pb.Message) error {
 			// which can easily result in hours of time spent probing and can
 			// even cause outright outages. The probes are thus optimized as
 			// described below.
-			r.logger.Debugf("%x received MsgAppResp(rejected, hint: (index %d, term %d)) from %x for index %d",
+			r.logger.Debugf("%x received MsgAppendResponse(rejected, hint: (index %d, term %d)) from %x for index %d",
 				r.id, m.RejectHint, m.LogTerm, m.From, m.Index)
 			nextProbeIdx := m.RejectHint
 			if m.LogTerm > 0 {
@@ -1583,7 +1600,7 @@ func stepLeader(r *raft, m pb.Message) error {
 				}
 				// Transfer leadership is in progress.
 				if m.From == r.leadTransferee && pr.Match == r.raftLog.lastIndex() {
-					r.logger.Infof("%x sent MsgTimeoutNow to %x after received MsgAppResp", r.id, m.From)
+					r.logger.Infof("%x sent MsgTimeoutNow to %x after received MsgAppendResponse", r.id, m.From)
 					r.sendTimeoutNow(m.From)
 				}
 			}
@@ -1637,13 +1654,13 @@ func stepLeader(r *raft, m pb.Message) error {
 			pr.BecomeProbe()
 			r.logger.Debugf("%x snapshot failed, resumed sending replication messages to %x [%s]", r.id, m.From, pr)
 		}
-		// If snapshot finish, wait for the MsgAppResp from the remote node before sending
-		// out the next MsgApp.
+		// If snapshot finish, wait for the MsgAppendResponse from the remote node before sending
+		// out the next MsgAppend.
 		// If snapshot failure, wait for a heartbeat interval before next try
 		pr.MsgAppFlowPaused = true
 	case pb.MsgUnreachable:
 		// During optimistic replication, if the remote becomes unreachable,
-		// there is huge probability that a MsgApp is lost.
+		// there is huge probability that a MsgAppend is lost.
 		if pr.State == tracker.StateReplicate {
 			pr.BecomeProbe()
 		}
@@ -1696,16 +1713,16 @@ func stepCandidate(r *raft, m pb.Message) error {
 		myVoteRespType = pb.MsgVoteResp
 	}
 	switch m.Type {
-	case pb.MsgProp:
+	case pb.MsgProposal:
 		r.logger.Infof("%x no leader at term %d; dropping proposal", r.id, r.Term)
 		return ErrProposalDropped
-	case pb.MsgApp:
+	case pb.MsgAppend:
 		r.becomeFollower(m.Term, m.From) // always m.Term == r.Term
 		r.handleAppendEntries(m)
 	case pb.MsgHeartbeat:
 		r.becomeFollower(m.Term, m.From) // always m.Term == r.Term
 		r.handleHeartbeat(m)
-	case pb.MsgSnap:
+	case pb.MsgSnapshot:
 		r.becomeFollower(m.Term, m.From) // always m.Term == r.Term
 		r.handleSnapshot(m)
 	case myVoteRespType:
@@ -1732,7 +1749,7 @@ func stepCandidate(r *raft, m pb.Message) error {
 
 func stepFollower(r *raft, m pb.Message) error {
 	switch m.Type {
-	case pb.MsgProp:
+	case pb.MsgProposal:
 		if r.lead == None {
 			r.logger.Infof("%x no leader at term %d; dropping proposal", r.id, r.Term)
 			return ErrProposalDropped
@@ -1742,7 +1759,7 @@ func stepFollower(r *raft, m pb.Message) error {
 		}
 		m.To = r.lead
 		r.send(m)
-	case pb.MsgApp:
+	case pb.MsgAppend:
 		r.electionElapsed = 0
 		r.lead = m.From
 		r.handleAppendEntries(m)
@@ -1750,7 +1767,7 @@ func stepFollower(r *raft, m pb.Message) error {
 		r.electionElapsed = 0
 		r.lead = m.From
 		r.handleHeartbeat(m)
-	case pb.MsgSnap:
+	case pb.MsgSnapshot:
 		r.electionElapsed = 0
 		r.lead = m.From
 		r.handleSnapshot(m)
@@ -1793,7 +1810,7 @@ func stepFollower(r *raft, m pb.Message) error {
 	return nil
 }
 
-// logSliceFromMsgApp extracts the appended logSlice from a MsgApp message.
+// logSliceFromMsgApp extracts the appended logSlice from a MsgAppend message.
 func logSliceFromMsgApp(m *pb.Message) logSlice {
 	// TODO(pav-kv): consider also validating the logSlice here.
 	return logSlice{
@@ -1809,22 +1826,22 @@ func (r *raft) handleAppendEntries(m pb.Message) {
 	a := logSliceFromMsgApp(&m)
 
 	if a.prev.index < r.raftLog.committed {
-		r.send(pb.Message{To: m.From, Type: pb.MsgAppResp, Index: r.raftLog.committed})
+		r.send(pb.Message{To: m.From, Type: pb.MsgAppendResponse, Index: r.raftLog.committed})
 		return
 	}
 	if mlastIndex, ok := r.raftLog.maybeAppend(a, m.Commit); ok {
-		r.send(pb.Message{To: m.From, Type: pb.MsgAppResp, Index: mlastIndex})
+		r.send(pb.Message{To: m.From, Type: pb.MsgAppendResponse, Index: mlastIndex})
 		return
 	}
-	r.logger.Debugf("%x [logterm: %d, index: %d] rejected MsgApp [logterm: %d, index: %d] from %x",
+	r.logger.Debugf("%x [logterm: %d, index: %d] rejected MsgAppend [logterm: %d, index: %d] from %x",
 		r.id, r.raftLog.zeroTermOnOutOfBounds(r.raftLog.term(m.Index)), m.Index, m.LogTerm, m.Index, m.From)
 
 	// Our log does not match the leader's at index m.Index. Return a hint to the
 	// leader - a guess on the maximal (index, term) at which the logs match. Do
 	// this by searching through the follower's log for the maximum (index, term)
-	// pair with a term <= the MsgApp's LogTerm and an index <= the MsgApp's
+	// pair with a term <= the MsgAppend's LogTerm and an index <= the MsgAppend's
 	// Index. This can help skip all indexes in the follower's uncommitted tail
-	// with terms greater than the MsgApp's LogTerm.
+	// with terms greater than the MsgAppend's LogTerm.
 	//
 	// See the other caller for findConflictByTerm (in stepLeader) for a much more
 	// detailed explanation of this mechanism.
@@ -1839,7 +1856,7 @@ func (r *raft) handleAppendEntries(m pb.Message) {
 	hintIndex, hintTerm := r.raftLog.findConflictByTerm(hintIndex, m.LogTerm)
 	r.send(pb.Message{
 		To:         m.From,
-		Type:       pb.MsgAppResp,
+		Type:       pb.MsgAppendResponse,
 		Index:      m.Index,
 		Reject:     true,
 		RejectHint: hintIndex,
@@ -1853,7 +1870,7 @@ func (r *raft) handleHeartbeat(m pb.Message) {
 }
 
 func (r *raft) handleSnapshot(m pb.Message) {
-	// MsgSnap messages should always carry a non-nil Snapshot, but err on the
+	// MsgSnapshot messages should always carry a non-nil Snapshot, but err on the
 	// side of safety and treat a nil Snapshot as a zero-valued Snapshot.
 	var s pb.Snapshot
 	if m.Snapshot != nil {
@@ -1863,11 +1880,11 @@ func (r *raft) handleSnapshot(m pb.Message) {
 	if r.restore(s) {
 		r.logger.Infof("%x [commit: %d] restored snapshot [index: %d, term: %d]",
 			r.id, r.raftLog.committed, sindex, sterm)
-		r.send(pb.Message{To: m.From, Type: pb.MsgAppResp, Index: r.raftLog.lastIndex()})
+		r.send(pb.Message{To: m.From, Type: pb.MsgAppendResponse, Index: r.raftLog.lastIndex()})
 	} else {
 		r.logger.Infof("%x [commit: %d] ignored snapshot [index: %d, term: %d]",
 			r.id, r.raftLog.committed, sindex, sterm)
-		r.send(pb.Message{To: m.From, Type: pb.MsgAppResp, Index: r.raftLog.committed})
+		r.send(pb.Message{To: m.From, Type: pb.MsgAppendResponse, Index: r.raftLog.committed})
 	}
 }
 

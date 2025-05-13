@@ -72,14 +72,23 @@ func (EntryType) EnumDescriptor() ([]byte, []int) {
 type MessageType int32
 
 const (
-	MsgHup               MessageType = 0
-	MsgBeat              MessageType = 1
-	MsgProp              MessageType = 2
-	MsgApp               MessageType = 3
-	MsgAppResp           MessageType = 4
+	// Election trigger message
+	// - Internal message to start election
+	// - Sent when:
+	//   1. Election timeout occurs
+	//   2. Node wants to become candidate
+	//   3. Initial cluster bootstrap
+	InternalMsgHeartbeatUp               MessageType = 0
+	// - Triggered by leader's tickHeartbeat
+	// - Internal trigger for leader to send heartbeats
+	// - When leader receives InternalMsgBeat, it broadcasts MsgHeartbeat to followers
+	InternalMsgBeat              MessageType = 1
+	MsgProposal              MessageType = 2
+	MsgAppend               MessageType = 3
+	MsgAppendResponse           MessageType = 4
 	MsgVote              MessageType = 5
 	MsgVoteResp          MessageType = 6
-	MsgSnap              MessageType = 7
+	MsgSnapshot              MessageType = 7
 	MsgHeartbeat         MessageType = 8
 	MsgHeartbeatResp     MessageType = 9
 	MsgUnreachable       MessageType = 10
@@ -99,14 +108,14 @@ const (
 )
 
 var MessageType_name = map[int32]string{
-	0:  "MsgHup",
-	1:  "MsgBeat",
-	2:  "MsgProp",
-	3:  "MsgApp",
-	4:  "MsgAppResp",
+	0:  "InternalMsgHeartbeatUp",
+	1:  "InternalMsgBeat",
+	2:  "MsgProposal",
+	3:  "MsgAppend",
+	4:  "MsgAppendResponse",
 	5:  "MsgVote",
 	6:  "MsgVoteResp",
-	7:  "MsgSnap",
+	7:  "MsgSnapshot",
 	8:  "MsgHeartbeat",
 	9:  "MsgHeartbeatResp",
 	10: "MsgUnreachable",
@@ -126,14 +135,14 @@ var MessageType_name = map[int32]string{
 }
 
 var MessageType_value = map[string]int32{
-	"MsgHup":               0,
-	"MsgBeat":              1,
-	"MsgProp":              2,
-	"MsgApp":               3,
-	"MsgAppResp":           4,
+	"InternalMsgHeartbeatUp":               0,
+	"InternalMsgBeat":              1,
+	"MsgProposal":              2,
+	"MsgAppend":               3,
+	"MsgAppendResponse":           4,
 	"MsgVote":              5,
 	"MsgVoteResp":          6,
-	"MsgSnap":              7,
+	"MsgSnapshot":              7,
 	"MsgHeartbeat":         8,
 	"MsgHeartbeatResp":     9,
 	"MsgUnreachable":       10,
@@ -401,9 +410,9 @@ type Message struct {
 	From uint64      `protobuf:"varint,3,opt,name=from" json:"from"`
 	Term uint64      `protobuf:"varint,4,opt,name=term" json:"term"`
 	// logTerm is generally used for appending Raft logs to followers. For example,
-	// (type=MsgApp,index=100,logTerm=5) means the leader appends entries starting
+	// (type=MsgAppend,index=100,logTerm=5) means the leader appends entries starting
 	// at index=101, and the term of the entry at index 100 is 5.
-	// (type=MsgAppResp,reject=true,index=100,logTerm=5) means follower rejects some
+	// (type=MsgAppendResponse,reject=true,index=100,logTerm=5) means follower rejects some
 	// entries from its leader as it already has an entry with term 5 at index 100.
 	// (type=MsgStorageAppendResp,index=100,logTerm=5) means the local node wrote
 	// entries up to index=100 in stable storage, and the term of the entry at index
@@ -420,9 +429,9 @@ type Message struct {
 	// any of the fields have changed or will all be unset if none of the fields
 	// have changed.
 	Vote uint64 `protobuf:"varint,13,opt,name=vote" json:"vote"`
-	// snapshot is non-nil and non-empty for MsgSnap messages and nil for all other
+	// snapshot is non-nil and non-empty for MsgSnapshot messages and nil for all other
 	// message types. However, peer nodes running older binary versions may send a
-	// non-nil, empty value for the snapshot field of non-MsgSnap messages. Code
+	// non-nil, empty value for the snapshot field of non-MsgSnapshot messages. Code
 	// should be prepared to handle such messages.
 	Snapshot   *Snapshot `protobuf:"bytes,9,opt,name=snapshot" json:"snapshot,omitempty"`
 	Reject     bool      `protobuf:"varint,10,opt,name=reject" json:"reject"`

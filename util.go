@@ -27,8 +27,8 @@ func (st StateType) MarshalJSON() ([]byte, error) {
 }
 
 var isLocalMsg = [...]bool{
-	pb.MsgHup:               true,
-	pb.MsgBeat:              true,
+	pb.InternalMsgHeartbeatUp:               true,
+	pb.InternalMsgBeat:              true,
 	pb.MsgUnreachable:       true,
 	pb.MsgSnapStatus:        true,
 	pb.MsgCheckQuorum:       true,
@@ -39,7 +39,7 @@ var isLocalMsg = [...]bool{
 }
 
 var isResponseMsg = [...]bool{
-	pb.MsgAppResp:           true,
+	pb.MsgAppendResponse:           true,
 	pb.MsgVoteResp:          true,
 	pb.MsgHeartbeatResp:     true,
 	pb.MsgUnreachable:       true,

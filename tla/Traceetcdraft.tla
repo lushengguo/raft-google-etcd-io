@@ -18,15 +18,15 @@ EXTENDS etcdraft, Json, IOUtils, Sequences, TLC
 
 \* raft.pb.go enum MessageType
 RaftMsgType ==
-    "MsgApp" :> AppendEntriesRequest @@ "MsgAppResp" :> AppendEntriesResponse @@
+    "MsgAppend" :> AppendEntriesRequest @@ "MsgAppendResponse" :> AppendEntriesResponse @@
     "MsgVote" :> RequestVoteRequest @@ "MsgVoteResp" :> RequestVoteResponse @@
     "MsgHeartbeat" :> AppendEntriesRequest @@ "MsgHeartbeatResp" :> AppendEntriesResponse @@
-    "MsgSnap" :> AppendEntriesRequest
+    "MsgSnapshot" :> AppendEntriesRequest
 
 RaftMsgSubtype ==
     "MsgHeartbeat" :> "heartbeat" @@ "MsgHeartbeatResp" :> "heartbeat" @@
-    "MsgApp" :> "app" @@ "MsgAppResp" :> "app" @@
-    "MsgSnap" :> "snapshot"
+    "MsgAppend" :> "app" @@ "MsgAppendResponse" :> "app" @@
+    "MsgSnapshot" :> "snapshot"
 
 -------------------------------------------------------------------------------------
 
@@ -149,11 +149,11 @@ LoglineIsAppendEntriesRequest(m) ==
     /\ m.mdest   = logline.event.msg.to
     /\ m.msource = logline.event.msg.from
     /\ m.mterm = logline.event.msg.term
-    \* MsgSnap is equivalent to MsgApp except that it does not
+    \* MsgSnapshot is equivalent to MsgAppend except that it does not
     \* have commit index. Snapshot message contains leader log prefix
     \* up to a committed entry. That means the receiver can safely advance
     \* its commit index at least to the last log entry in snapshot message.
-    \* Setting commit index in the MsgSnap message would become unnecessary.
+    \* Setting commit index in the MsgSnapshot message would become unnecessary.
     \* So we can safely ignore checking this against the model.
     /\ m.msubtype /= "snapshot" => m.mcommitIndex = logline.event.msg.commit
     /\ m.msubtype /= "heartbeat" => /\ m.mprevLogTerm = logline.event.msg.logTerm
@@ -271,7 +271,7 @@ ValidateAfterAppendEntriesToSelf(i) ==
 
 AppendEntriesIfLogged(i, j, range) == 
     /\ LoglineIsMessageEvent("SendAppendEntriesRequest", i, j)
-    /\ logline.event.msg.type = "MsgApp"
+    /\ logline.event.msg.type = "MsgAppend"
     /\ range[1] = logline.event.msg.index + 1
     /\ range[2] = range[1] + logline.event.msg.entries
     /\ AppendEntries(i, j, range)
@@ -285,7 +285,7 @@ HeartbeatIfLogged(i, j) ==
 
 SendSnapshotIfLogged(i, j, index) ==
     /\ LoglineIsMessageEvent("SendAppendEntriesRequest", i, j)
-    /\ logline.event.msg.type = "MsgSnap"
+    /\ logline.event.msg.type = "MsgSnapshot"
     /\ index = logline.event.msg.entries
     /\ SendSnapshot(i, j, index)
     /\ ValidateAfterAppendEntries(i, j)
@@ -402,13 +402,13 @@ TraceNextNonReceiveActions ==
           /\ \E i \in Server : ClientRequestIfLogged(i, 0)
        \/ /\ LoglineIsEvent("Commit") 
           /\ \E i \in Server : AdvanceCommitIndexIfLogged(i)
-       \/ /\ LoglineIsEvent("SendAppendEntriesRequest") /\ logline.event.msg.type = "MsgApp"
+       \/ /\ LoglineIsEvent("SendAppendEntriesRequest") /\ logline.event.msg.type = "MsgAppend"
           /\ \E i,j \in Server : \E b,e \in matchIndex[i][j]+1..Len(log[i])+1 : AppendEntriesIfLogged(i, j, <<b,e>>)
        \/ /\ LoglineIsEvent("SendAppendEntriesResponse") 
           /\ \E i \in Server : AppendEntriesToSelfIfLogged(i)
        \/ /\ LoglineIsEvent("SendAppendEntriesRequest")
           /\ \E i,j \in Server : HeartbeatIfLogged(i, j) /\ logline.event.msg.type = "MsgHeartbeat"
-       \/ /\ LoglineIsEvent("SendAppendEntriesRequest") /\ logline.event.msg.type = "MsgSnap"
+       \/ /\ LoglineIsEvent("SendAppendEntriesRequest") /\ logline.event.msg.type = "MsgSnapshot"
           /\ \E i,j \in Server : \E index \in 1..commitIndex[i] : SendSnapshotIfLogged(i, j, index)
        \/ /\ LoglineIsEvent("BecomeCandidate")
           /\ \E i \in Server : TimeoutIfLogged(i)

@@ -348,7 +348,7 @@ AppendEntriesInRangeToPeer(subtype, i, j, range) ==
                     mdest          |-> j])
           /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, logVars, configVars, durableState>> 
 
-\* etcd leader sends MsgAppResp to itself immediately after appending log entry 
+\* etcd leader sends MsgAppendResponse to itself immediately after appending log entry 
 AppendEntriesToSelf(i) ==
     /\ state[i] = Leader
     /\ Send([mtype           |-> AppendEntriesResponse,

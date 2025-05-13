@@ -36,25 +36,25 @@ Ready MustSync=true:
 Entries:
 1/12 EntryNormal "init_prop"
 Messages:
-2->1 MsgApp Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
-2->3 MsgApp Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
-2->4 MsgApp Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
-2->5 MsgApp Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
-2->6 MsgApp Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
-2->7 MsgApp Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
+2->1 MsgAppend Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
+2->3 MsgAppend Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
+2->4 MsgAppend Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
+2->5 MsgAppend Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
+2->6 MsgAppend Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
+2->7 MsgAppend Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
 2->AppendThread MsgStorageAppend Term:0 Log:0/0 Entries:[1/12 EntryNormal "init_prop"] Responses:[
-  2->2 MsgAppResp Term:1 Log:0/12
+  2->2 MsgAppendResponse Term:1 Log:0/12
   AppendThread->2 MsgStorageAppendResp Term:1 Log:1/12
 ]
 
 deliver-msgs 1 drop=(3,4,5,6,7)
 ----
-2->1 MsgApp Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
-dropped: 2->3 MsgApp Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
-dropped: 2->4 MsgApp Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
-dropped: 2->5 MsgApp Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
-dropped: 2->6 MsgApp Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
-dropped: 2->7 MsgApp Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
+2->1 MsgAppend Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
+dropped: 2->3 MsgAppend Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
+dropped: 2->4 MsgAppend Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
+dropped: 2->5 MsgAppend Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
+dropped: 2->6 MsgAppend Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
+dropped: 2->7 MsgAppend Term:1 Log:1/11 Commit:11 Entries:[1/12 EntryNormal "init_prop"]
 
 # Step 3: node 1 gets the Ready and the entries are appended asynchronously.
 
@@ -65,7 +65,7 @@ Entries:
 1/12 EntryNormal "init_prop"
 Messages:
 1->AppendThread MsgStorageAppend Term:0 Log:0/0 Entries:[1/12 EntryNormal "init_prop"] Responses:[
-  1->2 MsgAppResp Term:1 Log:0/12
+  1->2 MsgAppendResponse Term:1 Log:0/12
   AppendThread->1 MsgStorageAppendResp Term:1 Log:1/12
 ]
 
@@ -191,14 +191,14 @@ Lead:3 State:StateLeader
 Entries:
 2/12 EntryNormal ""
 Messages:
-3->1 MsgApp Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
-3->2 MsgApp Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
-3->4 MsgApp Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
-3->5 MsgApp Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
-3->6 MsgApp Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
-3->7 MsgApp Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
+3->1 MsgAppend Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
+3->2 MsgAppend Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
+3->4 MsgAppend Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
+3->5 MsgAppend Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
+3->6 MsgAppend Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
+3->7 MsgAppend Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
 3->AppendThread MsgStorageAppend Term:0 Log:0/0 Entries:[2/12 EntryNormal ""] Responses:[
-  3->3 MsgAppResp Term:2 Log:0/12
+  3->3 MsgAppendResponse Term:2 Log:0/12
   AppendThread->3 MsgStorageAppendResp Term:2 Log:2/12
 ]
 
@@ -208,16 +208,16 @@ deliver-msgs 1 drop=(2,4,5,6,7)
 INFO 1 [term: 1] received a MsgVote message with higher term from 3 [term: 2]
 INFO 1 became follower at term 2
 INFO 1 [logterm: 1, index: 12, vote: 0] rejected MsgVote from 3 [logterm: 1, index: 11] at term 2
-3->1 MsgApp Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
+3->1 MsgAppend Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
 INFO found conflict at index 12 [existing term: 1, conflicting term: 2]
 INFO replace the unstable entries from index 12
 dropped: 3->2 MsgVote Term:2 Log:1/11
-dropped: 3->2 MsgApp Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
-dropped: 3->4 MsgApp Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
-dropped: 3->5 MsgApp Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
-dropped: 3->6 MsgApp Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
+dropped: 3->2 MsgAppend Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
+dropped: 3->4 MsgAppend Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
+dropped: 3->5 MsgAppend Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
+dropped: 3->6 MsgAppend Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
 dropped: 3->7 MsgVote Term:2 Log:1/11
-dropped: 3->7 MsgApp Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
+dropped: 3->7 MsgAppend Term:2 Log:1/11 Commit:11 Entries:[2/12 EntryNormal ""]
 
 process-ready 1
 ----
@@ -229,7 +229,7 @@ Entries:
 Messages:
 1->AppendThread MsgStorageAppend Term:2 Log:0/0 Commit:11 Entries:[2/12 EntryNormal ""] Responses:[
   1->3 MsgVoteResp Term:2 Log:0/0 Rejected (Hint: 0)
-  1->3 MsgAppResp Term:2 Log:0/12
+  1->3 MsgAppendResponse Term:2 Log:0/12
   AppendThread->1 MsgStorageAppendResp Term:2 Log:2/12
 ]
 
@@ -348,14 +348,14 @@ Lead:4 State:StateLeader
 Entries:
 3/12 EntryNormal ""
 Messages:
-4->1 MsgApp Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
-4->2 MsgApp Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
-4->3 MsgApp Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
-4->5 MsgApp Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
-4->6 MsgApp Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
-4->7 MsgApp Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
+4->1 MsgAppend Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
+4->2 MsgAppend Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
+4->3 MsgAppend Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
+4->5 MsgAppend Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
+4->6 MsgAppend Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
+4->7 MsgAppend Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
 4->AppendThread MsgStorageAppend Term:0 Log:0/0 Entries:[3/12 EntryNormal ""] Responses:[
-  4->4 MsgAppResp Term:3 Log:0/12
+  4->4 MsgAppendResponse Term:3 Log:0/12
   AppendThread->4 MsgStorageAppendResp Term:3 Log:3/12
 ]
 
@@ -368,7 +368,7 @@ Messages:
 deliver-msgs drop=1
 ----
 dropped: 4->1 MsgVote Term:3 Log:1/11
-dropped: 4->1 MsgApp Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
+dropped: 4->1 MsgAppend Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
 
 tick-heartbeat 4
 ----
@@ -410,11 +410,11 @@ process-ready 4
 ----
 Ready MustSync=false:
 Messages:
-4->1 MsgApp Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
+4->1 MsgAppend Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
 
 deliver-msgs 1
 ----
-4->1 MsgApp Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
+4->1 MsgAppend Term:3 Log:1/11 Commit:11 Entries:[3/12 EntryNormal ""]
 INFO found conflict at index 12 [existing term: 2, conflicting term: 3]
 INFO replace the unstable entries from index 12
 
@@ -425,7 +425,7 @@ Entries:
 3/12 EntryNormal ""
 Messages:
 1->AppendThread MsgStorageAppend Term:0 Log:0/0 Entries:[3/12 EntryNormal ""] Responses:[
-  1->4 MsgAppResp Term:3 Log:0/12
+  1->4 MsgAppendResponse Term:3 Log:0/12
   AppendThread->1 MsgStorageAppendResp Term:3 Log:3/12
 ]
 
@@ -442,7 +442,7 @@ process-append-thread 1
 Processing:
 1->AppendThread MsgStorageAppend Term:0 Log:0/0 Entries:[1/12 EntryNormal "init_prop"]
 Responses:
-1->2 MsgAppResp Term:1 Log:0/12
+1->2 MsgAppendResponse Term:1 Log:0/12
 AppendThread->1 MsgStorageAppendResp Term:1 Log:1/12
 
 raft-log 1
@@ -469,7 +469,7 @@ Processing:
 1->AppendThread MsgStorageAppend Term:2 Log:0/0 Commit:11 Entries:[2/12 EntryNormal ""]
 Responses:
 1->3 MsgVoteResp Term:2 Log:0/0 Rejected (Hint: 0)
-1->3 MsgAppResp Term:2 Log:0/12
+1->3 MsgAppendResponse Term:2 Log:0/12
 AppendThread->1 MsgStorageAppendResp Term:2 Log:2/12
 
 raft-log 1
@@ -504,7 +504,7 @@ process-append-thread 1
 Processing:
 1->AppendThread MsgStorageAppend Term:0 Log:0/0 Entries:[3/12 EntryNormal ""]
 Responses:
-1->4 MsgAppResp Term:3 Log:0/12
+1->4 MsgAppendResponse Term:3 Log:0/12
 AppendThread->1 MsgStorageAppendResp Term:3 Log:3/12
 
 raft-log 1

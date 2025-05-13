@@ -170,19 +170,19 @@ stabilize 3
   Entries:
   2/13 EntryNormal "prop_1"
   Messages:
-  3->1 MsgApp Term:2 Log:2/12 Commit:12 Entries:[2/13 EntryNormal "prop_1"]
-  3->2 MsgApp Term:2 Log:2/12 Commit:12 Entries:[2/13 EntryNormal "prop_1"]
+  3->1 MsgAppend Term:2 Log:2/12 Commit:12 Entries:[2/13 EntryNormal "prop_1"]
+  3->2 MsgAppend Term:2 Log:2/12 Commit:12 Entries:[2/13 EntryNormal "prop_1"]
 
 stabilize 2
 ----
 > 2 receiving messages
-  3->2 MsgApp Term:2 Log:2/12 Commit:12 Entries:[2/13 EntryNormal "prop_1"]
+  3->2 MsgAppend Term:2 Log:2/12 Commit:12 Entries:[2/13 EntryNormal "prop_1"]
 > 2 handling Ready
   Ready MustSync=true:
   Entries:
   2/13 EntryNormal "prop_1"
   Messages:
-  2->3 MsgAppResp Term:2 Log:0/13
+  2->3 MsgAppendResponse Term:2 Log:0/13
 
 forget-leader 2
 ----

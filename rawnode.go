@@ -82,14 +82,14 @@ func (rn *RawNode) TickQuiesced() {
 // Campaign causes this RawNode to transition to candidate state.
 func (rn *RawNode) Campaign() error {
 	return rn.raft.Step(pb.Message{
-		Type: pb.MsgHup,
+		Type: pb.InternalMsgHeartbeatUp,
 	})
 }
 
 // Propose proposes data be appended to the raft log.
 func (rn *RawNode) Propose(data []byte) error {
 	return rn.raft.Step(pb.Message{
-		Type: pb.MsgProp,
+		Type: pb.MsgProposal,
 		From: rn.raft.id,
 		Entries: []pb.Entry{
 			{Data: data},
@@ -250,8 +250,8 @@ func newStorageAppendMsg(r *raft, rd Ready) pb.Message {
 	// to acknowledge the entry stability.
 	//
 	// NB: it is important for performance that MsgStorageAppendResp message be
-	// handled after self-directed MsgAppResp messages on the leader (which will
-	// be contained in msgsAfterAppend). This ordering allows the MsgAppResp
+	// handled after self-directed MsgAppendResponse messages on the leader (which will
+	// be contained in msgsAfterAppend). This ordering allows the MsgAppendResponse
 	// handling to use a fast-path in r.raftLog.term() before the newly appended
 	// entries are removed from the unstable log.
 	m.Responses = r.msgsAfterAppend

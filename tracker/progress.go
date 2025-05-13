@@ -63,12 +63,12 @@ type Progress struct {
 
 	// PendingSnapshot is used in StateSnapshot and tracks the last index of the
 	// leader at the time at which it realized a snapshot was necessary. This
-	// matches the index in the MsgSnap message emitted from raft.
+	// matches the index in the MsgSnapshot message emitted from raft.
 	//
 	// While there is a pending snapshot, replication to the follower is paused.
 	// The follower will transition back to StateReplicate if the leader
-	// receives an MsgAppResp from it that reconnects the follower to the
-	// leader's log (such an MsgAppResp is emitted when the follower applies a
+	// receives an MsgAppendResponse from it that reconnects the follower to the
+	// leader's log (such an MsgAppendResponse is emitted when the follower applies a
 	// snapshot). It may be surprising that PendingSnapshot is not taken into
 	// account here, but consider that complex systems may delegate the sending
 	// of snapshots to alternative datasources (i.e. not the leader). In such
@@ -79,7 +79,7 @@ type Progress struct {
 	// The follower will transition to StateProbe if ReportSnapshot is called on
 	// the leader; if SnapshotFinish is passed then PendingSnapshot becomes the
 	// basis for the next attempt to append. In practice, the first mechanism is
-	// the one that is relevant in most cases. However, if this MsgAppResp is
+	// the one that is relevant in most cases. However, if this MsgAppendResponse is
 	// lost (fallible network) then the second mechanism ensures that in this
 	// case the follower does not erroneously remain in StateSnapshot.
 	PendingSnapshot uint64
@@ -90,9 +90,9 @@ type Progress struct {
 	// This is always true on the leader.
 	RecentActive bool
 
-	// MsgAppFlowPaused is used when the MsgApp flow to a node is throttled. This
+	// MsgAppFlowPaused is used when the MsgAppend flow to a node is throttled. This
 	// happens in StateProbe, or StateReplicate with saturated Inflights. In both
-	// cases, we need to continue sending MsgApp once in a while to guarantee
+	// cases, we need to continue sending MsgAppend once in a while to guarantee
 	// progress, but we only do so when MsgAppFlowPaused is false (it is reset on
 	// receiving a heartbeat response), to not overflow the receiver. See
 	// IsPaused().
@@ -158,7 +158,7 @@ func (pr *Progress) BecomeSnapshot(snapshoti uint64) {
 }
 
 // SentEntries updates the progress on the given number of consecutive entries
-// being sent in a MsgApp, with the given total bytes size, appended at log
+// being sent in a MsgAppend, with the given total bytes size, appended at log
 // indices >= pr.Next.
 //
 // Must be used with StateProbe or StateReplicate.
@@ -175,7 +175,7 @@ func (pr *Progress) SentEntries(entries int, bytes uint64) {
 	case StateProbe:
 		// TODO(pavelkalinnikov): this condition captures the previous behaviour,
 		// but we should set MsgAppFlowPaused unconditionally for simplicity, because any
-		// MsgApp in StateProbe is a probe, not only non-empty ones.
+		// MsgAppend in StateProbe is a probe, not only non-empty ones.
 		if entries > 0 {
 			pr.MsgAppFlowPaused = true
 		}
@@ -199,7 +199,7 @@ func (pr *Progress) SentCommit(commit uint64) {
 	pr.sentCommit = commit
 }
 
-// MaybeUpdate is called when an MsgAppResp arrives from the follower, with the
+// MaybeUpdate is called when an MsgAppendResponse arrives from the follower, with the
 // index acked by it. The method returns false if the given n index comes from
 // an outdated message. Otherwise it updates the progress and returns true.
 func (pr *Progress) MaybeUpdate(n uint64) bool {
@@ -212,7 +212,7 @@ func (pr *Progress) MaybeUpdate(n uint64) bool {
 	return true
 }
 
-// MaybeDecrTo adjusts the Progress to the receipt of a MsgApp rejection. The
+// MaybeDecrTo adjusts the Progress to the receipt of a MsgAppend rejection. The
 // arguments are the index of the append message rejected by the follower, and
 // the hint that we want to decrease to.
 //
